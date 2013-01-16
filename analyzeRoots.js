@@ -115,6 +115,8 @@ function expressionUsesVariable(exp, variable, ignoreTopmost)
 
 function edgeUsesVariable(edge, variable)
 {
+    if (ignoreEdgeUse(edge, variable))
+        return false;
     switch (edge.Kind) {
     case "Assign":
         if (expressionUsesVariable(edge.Exp[0], variable, true))
@@ -421,13 +423,14 @@ function processBodies()
 assert(!system("xdbkeys src_body.xdb > tmp.txt"));
 var functionNames = snarf("tmp.txt").split('\n');
 assert(!functionNames[functionNames.length - 1]);
-for (var nameIndex = 0; nameIndex < functionNames.length - 1; nameIndex++) {
+for (var nameIndex = 4537; nameIndex < functionNames.length - 1; nameIndex++) {
     functionName = functionNames[nameIndex];
     printErr("Processing: " + nameIndex);
     assert(!system("xdbfind -json src_body.xdb '" + functionName + "' > tmp.txt"));
     var text = snarf("tmp.txt");
     functionBodies = JSON.parse(text);
     processBodies();
+    break;
 }
 
 print("\n</pre></html>");
