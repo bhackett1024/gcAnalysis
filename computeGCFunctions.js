@@ -1,6 +1,8 @@
 
 "use strict";
 
+load('annotations.js');
+
 print("<html><pre>");
 print("Time: " + new Date);
 
@@ -10,44 +12,25 @@ function assert(x)
 	throw "assertion failed: " + (Error().stack);
 }
 
-function indirectCallCannotGC(caller, name)
+function addGCFunction(caller, reason)
 {
-    if (name == "mallocSizeOf")
-	return true;
-
     if (caller == "void js_ReportOutOfMemory(JSContext*)")
+	return false;
+    if (caller == "void js_ReportAllocationOverflow(JSContext*)")
+	return false;
+    if (caller == "uint8 js::DeflateStringToBuffer(JSContext*, uint16*, uint64, int8*, uint64*)")
+	return false;
+    if (caller == "uint8 js::InflateStringToBuffer(JSContext*, int8*, uint64, uint16*, uint64*)")
+	return false;
+    if (caller == "uint8 js::InflateUTF8StringToBuffer(JSContext*, int8*, uint64, uint16*, uint64*)")
+	return false;
+
+    if (!(caller in gcFunctions)) {
+	gcFunctions[caller] = reason;
 	return true;
-
-    return false;
-}
-
-function fieldCallCannotGC(csu, field)
-{
-    var ignoreClasses = [
-	"js::ion::MNode",
-	"js::ion::MDefinition",
-	"js::ion::MInstruction",
-	"js::ion::MControlInstruction",
-	"js::ion::LInstruction",
-	"js::ion::OutOfLineCode",
-	"JSTracer",
-	"SprintfStateStr",
-	"js::InterpreterFrames::InterruptEnablerBase",
-	"JSLocaleCallbacks"
-    ];
-
-    for (var i = 0; i < ignoreClasses.length; i++) {
-	if (csu == ignoreClasses[i])
-	    return true;
     }
 
     return false;
-}
-
-function addGCFunction(caller, reason)
-{
-    if (!(caller in gcFunctions))
-	gcFunctions[caller] = reason;
 }
 
 function addCallEdge(caller, callee)
@@ -61,7 +44,7 @@ var callerGraph = {};
 var gcFunctions = {};
 
 if (typeof arguments[0] != 'string')
-    throw "Usage: computeCallgraph.js <callgraph.txt>";
+    throw "Usage: computeGCFunctions.js <callgraph.txt>";
 
 var textLines = snarf(arguments[0]).split('\n');
 for (var line of textLines) {
@@ -84,9 +67,9 @@ for (var line of textLines) {
     }
 }
 
-var gcName = 'void js::GC(JSRuntime*, js::JSGCInvocationKind, js::gcreason::Reason)';
+var gcName = 'void js::GC(JSRuntime*, uint32, uint32)';
 assert(gcName in callerGraph);
-addGCFunction(gcName, "<GC>");
+addGCFunction(gcName, "GC");
 
 var worklist = [];
 for (var name in gcFunctions)
@@ -98,10 +81,8 @@ while (worklist.length) {
     if (!(name in callerGraph))
 	continue;
     for (var caller of callerGraph[name]) {
-	if (caller in gcFunctions)
-	    continue;
-	gcFunctions[caller] = name;
-	worklist.push(caller);
+	if (addGCFunction(caller, name))
+	    worklist.push(caller);
     }
 }
 
