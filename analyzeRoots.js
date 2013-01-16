@@ -316,7 +316,7 @@ function computePrintedLines()
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i];
         if (/^block:/.test(line)) {
-            if (match = /:(loop#\d+)/.exec(line)) {
+            if (match = /:(loop#[\d#]+)/.exec(line)) {
                 var loop = match[1];
                 var found = false;
                 for (var body of functionBodies) {
@@ -359,6 +359,9 @@ function printEntryTrace(entry)
         }
         assert(lineText);
 
+        if (match = /.*?mozilla-inbound\/(.*)/.exec(lineText))
+            lineText = match[1];
+
         var edgeText = null;
         if (entry.why && entry.why.body == entry.body) {
             // If the next point in the trace is in the same block, look for an edge between them.
@@ -398,12 +401,17 @@ function processBodies()
             continue;
         var name = variable.Variable.Name[0];
         if (isRootedType(variable.Type)) {
-            if (!variableLiveAcrossGC(variable.Variable))
-                print("Function '" + functionName + "' with root " + name + " is not live across a GC call");
+            if (!variableLiveAcrossGC(variable.Variable)) {
+                print("\nFunction '" + functionName + "'" +
+                      " with root " + name + " is not live across a GC call");
+            }
         } else if (isUnrootedType(variable.Type)) {
             var result = variableLiveAcrossGC(variable.Variable);
             if (result) {
-                print("Function '" + functionName + "' with unrooted " + name + " is live across GC call " + result.gcName);
+                var filename = functionBodies[0].PPoint[0].Location.CacheString;
+                var isXML = /jsxml\.cpp/.test(filename);
+                print("\n" + (isXML ? "XML " : "") + "Function '" + functionName + "'" +
+                      " with unrooted " + name + " is live across GC call " + result.gcName);
                 printEntryTrace(result.why);
             }
         }
@@ -422,4 +430,4 @@ for (var nameIndex = 0; nameIndex < functionNames.length - 1; nameIndex++) {
     processBodies();
 }
 
-print("</pre></html>");
+print("\n</pre></html>");
