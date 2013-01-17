@@ -4,9 +4,6 @@
 
 load('annotations.js');
 
-print("<html><pre>");
-print("Time: " + new Date);
-
 var functionName;
 var functionBodies;
 
@@ -236,14 +233,16 @@ function variableUseFollowsGC(variable, worklist)
                             if (sameBlockId(xbody.BlockId, parent.BlockId)) {
                                 assert(!found);
                                 found = true;
-                                worklist.push({body:xbody, ppoint:parent.Index, gcName:entry.gcName, why:entry});
+                                worklist.push({body:xbody, ppoint:parent.Index,
+                                               gcName:entry.gcName, gcPoint:entry.gcPoint,
+                                               why:entry});
                             }
                         }
                         assert(found);
                     }
                 }
             } else if (variable.Kind == "Arg" && entry.gcName) {
-                return {gcName:entry.gcName, why:entry};
+                return {gcName:entry.gcName, gcPoint:entry.gcPoint, why:entry};
             }
         }
 
@@ -254,16 +253,25 @@ function variableUseFollowsGC(variable, worklist)
             continue;
 
         for (var edge of body.predecessors[ppoint]) {
+            var source = edge.Index[0];
+
             if (edgeKillsVariable(edge, variable)) {
                 if (entry.gcName)
-                    return {gcName:entry.gcName, why:entry};
+                    return {gcName:entry.gcName, gcPoint:entry.gcPoint, why:entry};
+                if (!body.minimumUse || source < body.minimumUse)
+                    body.minimumUse = source;
                 continue;
             }
 
             var gcName = entry.gcName ? entry.gcName : edgeCanGC(edge);
+            var gcPoint = entry.gcPoint ? entry.gcPoint : (gcName ? source : 0);
 
-            if (gcName && edgeUsesVariable(edge, variable))
-                return {gcName:gcName, why:entry};
+            if (edgeUsesVariable(edge, variable)) {
+                if (gcName)
+                    return {gcName:gcName, gcPoint:gcPoint, why:entry};
+                if (!body.minimumUse || source < body.minimumUse)
+                    body.minimumUse = source;
+            }
 
             if (edge.Kind == "Loop") {
                 // propagate to exit points of the loop body, in addition to the
@@ -273,13 +281,14 @@ function variableUseFollowsGC(variable, worklist)
                     if (sameBlockId(xbody.BlockId, edge.BlockId)) {
                         assert(!found);
                         found = true;
-                        worklist.push({body:xbody, ppoint:xbody.Index[1], gcName:gcName, why:entry});
+                        worklist.push({body:xbody, ppoint:xbody.Index[1],
+                                       gcName:gcName, gcPoint:gcPoint, why:entry});
                     }
                 }
                 assert(found);
                 break;
             }
-            worklist.push({body:body, ppoint:edge.Index[0], gcName:gcName, why:entry});
+            worklist.push({body:body, ppoint:edge.Index[0], gcName:gcName, gcPoint:gcPoint, why:entry});
         }
     }
 
@@ -288,8 +297,10 @@ function variableUseFollowsGC(variable, worklist)
 
 function variableLiveAcrossGC(variable)
 {
-    for (var body of functionBodies)
+    for (var body of functionBodies) {
         body.seen = null;
+        body.minimumUse = 0;
+    }
     for (var body of functionBodies) {
         if (!("PEdge" in body))
             continue;
@@ -341,6 +352,24 @@ function computePrintedLines()
     }
 }
 
+function findLocation(body, ppoint)
+{
+    var location = body.PPoint[ppoint - 1].Location;
+    var text = location.CacheString + ":" + location.Line;
+    if (match = /.*?mozilla-inbound\/js\/src\/(.*)/.exec(text))
+        return match[1];
+    if (match = /.*?mozilla-inbound\/(.*)/.exec(text))
+        return match[1];
+    return text;
+}
+
+function locationLine(text)
+{
+    if (match = /:(\d+)$/.exec(text))
+        return match[1];
+    return 0;
+}
+
 function printEntryTrace(entry)
 {
     if (!functionBodies[0].lines)
@@ -348,21 +377,7 @@ function printEntryTrace(entry)
 
     while (entry) {
         var ppoint = entry.ppoint;
-
-        // Find the point's source location.
-        var lineText = null;
-        for (var line of entry.body.lines) {
-            if (match = /point (\d+): \"(.*?)\"/.exec(line)) {
-                if (match[1] == ppoint) {
-                    assert(!lineText);
-                    lineText = match[2];
-                }
-            }
-        }
-        assert(lineText);
-
-        if (match = /.*?mozilla-inbound\/(.*)/.exec(lineText))
-            lineText = match[1];
+        var lineText = findLocation(entry.body, ppoint);
 
         var edgeText = null;
         if (entry.why && entry.why.body == entry.body) {
@@ -404,33 +419,45 @@ function processBodies()
         var name = variable.Variable.Name[0];
         if (isRootedType(variable.Type)) {
             if (!variableLiveAcrossGC(variable.Variable)) {
+                // The earliest use of the variable should be its constructor.
+                var lineText;
+                for (var body of functionBodies) {
+                    if (body.minimumUse) {
+                        var text = findLocation(body, body.minimumUse);
+                        if (!lineText || locationLine(lineText) > locationLine(text))
+                            lineText = text;
+                    }
+                }
                 print("\nFunction '" + functionName + "'" +
-                      " with root " + name + " is not live across a GC call");
+                      " has unnecessary root '" + name + "' at " + lineText);
             }
         } else if (isUnrootedType(variable.Type)) {
             var result = variableLiveAcrossGC(variable.Variable);
             if (result) {
-                var filename = functionBodies[0].PPoint[0].Location.CacheString;
-                var isXML = /jsxml\.cpp/.test(filename);
-                print("\n" + (isXML ? "XML " : "") + "Function '" + functionName + "'" +
-                      " with unrooted " + name + " is live across GC call " + result.gcName);
+                var lineText = findLocation(result.why.body, result.gcPoint);
+                print("\nFunction '" + functionName + "'" +
+                      " with unrooted '" + name + "'" +
+                      " is live across GC call " + result.gcName +
+                      " at " + lineText);
                 printEntryTrace(result.why);
             }
         }
     }
 }
 
+print("<html><pre>");
+print("Time: " + new Date);
+
 assert(!system("xdbkeys src_body.xdb > tmp.txt"));
 var functionNames = snarf("tmp.txt").split('\n');
 assert(!functionNames[functionNames.length - 1]);
-for (var nameIndex = 4537; nameIndex < functionNames.length - 1; nameIndex++) {
+for (var nameIndex = 0; nameIndex < functionNames.length - 1; nameIndex++) {
     functionName = functionNames[nameIndex];
     printErr("Processing: " + nameIndex);
     assert(!system("xdbfind -json src_body.xdb '" + functionName + "' > tmp.txt"));
     var text = snarf("tmp.txt");
     functionBodies = JSON.parse(text);
     processBodies();
-    break;
 }
 
 print("\n</pre></html>");

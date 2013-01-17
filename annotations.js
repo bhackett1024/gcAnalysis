@@ -8,26 +8,27 @@ function indirectCallCannotGC(caller, name)
     return false;
 }
 
+var ignoreClasses = [
+    "js::ion::MNode",
+    "js::ion::MDefinition",
+    "js::ion::MInstruction",
+    "js::ion::MControlInstruction",
+    "js::ion::LInstruction",
+    "js::ion::OutOfLineCode",
+    "JSTracer",
+    "SprintfStateStr",
+    "js::InterpreterFrames::InterruptEnablerBase",
+    "JSLocaleCallbacks",
+    "js::MatchPairs",
+    "js::types::TypeConstraint"
+];
+
 function fieldCallCannotGC(csu, field)
 {
-    var ignoreClasses = [
-        "js::ion::MNode",
-        "js::ion::MDefinition",
-        "js::ion::MInstruction",
-        "js::ion::MControlInstruction",
-        "js::ion::LInstruction",
-        "js::ion::OutOfLineCode",
-        "JSTracer",
-        "SprintfStateStr",
-        "js::InterpreterFrames::InterruptEnablerBase",
-        "JSLocaleCallbacks"
-    ];
-
     for (var i = 0; i < ignoreClasses.length; i++) {
         if (csu == ignoreClasses[i])
             return true;
     }
-
     return false;
 }
 
@@ -43,5 +44,24 @@ function ignoreEdgeUse(edge, variable)
         }
     }
 
+    return false;
+}
+
+var ignoreFunctions = [
+    "js_ReportOutOfMemory",
+    "js_ReportAllocationOverflow",
+    "js::DeflateStringToBuffer",
+    "js::InflateStringToBuffer",
+    "js::InflateUTF8StringToBuffer",
+    "js::types::TypeObject::clearNewScript",
+    "analyzeTypesBytecode"
+];
+
+function ignoreGCFunction(fun)
+{
+    for (var i = 0; i < ignoreFunctions.length; i++) {
+        if (fun.indexOf(ignoreFunctions[i]) >= 0)
+            return true;
+    }
     return false;
 }

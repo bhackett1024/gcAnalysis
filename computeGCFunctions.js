@@ -15,15 +15,7 @@ function assert(x)
 
 function addGCFunction(caller, reason)
 {
-    if (caller == "void js_ReportOutOfMemory(JSContext*)")
-        return false;
-    if (caller == "void js_ReportAllocationOverflow(JSContext*)")
-        return false;
-    if (caller == "uint8 js::DeflateStringToBuffer(JSContext*, uint16*, uint64, int8*, uint64*)")
-        return false;
-    if (caller == "uint8 js::InflateStringToBuffer(JSContext*, int8*, uint64, uint16*, uint64*)")
-        return false;
-    if (caller == "uint8 js::InflateUTF8StringToBuffer(JSContext*, int8*, uint64, uint16*, uint64*)")
+    if (ignoreGCFunction(caller))
         return false;
 
     if (!(caller in gcFunctions)) {
