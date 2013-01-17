@@ -215,13 +215,13 @@ function variableUseFollowsGC(variable, worklist)
         if (body.seen) {
             if (ppoint in body.seen) {
                 var seenEntry = body.seen[ppoint];
-                if (!entry.gcName || seenEntry.gcName)
+                if (!entry.gcInfo || seenEntry.gcInfo)
                     continue;
             }
         } else {
             body.seen = [];
         }
-        body.seen[ppoint] = {body:body, gcName:entry.gcName, why:entry.why};
+        body.seen[ppoint] = {body:body, gcInfo:entry.gcInfo};
 
         if (ppoint == body.Index[0]) {
             if (body.BlockId.Kind == "Loop") {
@@ -234,15 +234,14 @@ function variableUseFollowsGC(variable, worklist)
                                 assert(!found);
                                 found = true;
                                 worklist.push({body:xbody, ppoint:parent.Index,
-                                               gcName:entry.gcName, gcPoint:entry.gcPoint,
-                                               why:entry});
+                                               gcInfo:entry.gcInfo, why:entry});
                             }
                         }
                         assert(found);
                     }
                 }
-            } else if (variable.Kind == "Arg" && entry.gcName) {
-                return {gcName:entry.gcName, gcPoint:entry.gcPoint, why:entry};
+            } else if (variable.Kind == "Arg" && entry.gcInfo) {
+                return {gcInfo:entry.gcInfo, why:entry};
             }
         }
 
@@ -256,19 +255,23 @@ function variableUseFollowsGC(variable, worklist)
             var source = edge.Index[0];
 
             if (edgeKillsVariable(edge, variable)) {
-                if (entry.gcName)
-                    return {gcName:entry.gcName, gcPoint:entry.gcPoint, why:entry};
+                if (entry.gcInfo)
+                    return {gcInfo:entry.gcInfo, why:entry};
                 if (!body.minimumUse || source < body.minimumUse)
                     body.minimumUse = source;
                 continue;
             }
 
-            var gcName = entry.gcName ? entry.gcName : edgeCanGC(edge);
-            var gcPoint = entry.gcPoint ? entry.gcPoint : (gcName ? source : 0);
+            var gcInfo = entry.gcInfo;
+            if (!gcInfo) {
+                var gcName = edgeCanGC(edge);
+                if (gcName)
+                    gcInfo = {name:gcName, body:body, ppoint:source};
+            }
 
             if (edgeUsesVariable(edge, variable)) {
-                if (gcName)
-                    return {gcName:gcName, gcPoint:gcPoint, why:entry};
+                if (gcInfo)
+                    return {gcInfo:gcInfo, why:entry};
                 if (!body.minimumUse || source < body.minimumUse)
                     body.minimumUse = source;
             }
@@ -282,13 +285,13 @@ function variableUseFollowsGC(variable, worklist)
                         assert(!found);
                         found = true;
                         worklist.push({body:xbody, ppoint:xbody.Index[1],
-                                       gcName:gcName, gcPoint:gcPoint, why:entry});
+                                       gcInfo:gcInfo, why:entry});
                     }
                 }
                 assert(found);
                 break;
             }
-            worklist.push({body:body, ppoint:edge.Index[0], gcName:gcName, gcPoint:gcPoint, why:entry});
+            worklist.push({body:body, ppoint:source, gcInfo:gcInfo, why:entry});
         }
     }
 
@@ -306,7 +309,7 @@ function variableLiveAcrossGC(variable)
             continue;
         for (var edge of body.PEdge) {
             if (edgeUsesVariable(edge, variable)) {
-                var worklist = [{body:body, ppoint:edge.Index[0], gcName:null, why:null}];
+                var worklist = [{body:body, ppoint:edge.Index[0], gcInfo:null, why:null}];
                 var call = variableUseFollowsGC(variable, worklist);
                 if (call)
                     return call;
@@ -434,10 +437,10 @@ function processBodies()
         } else if (isUnrootedType(variable.Type)) {
             var result = variableLiveAcrossGC(variable.Variable);
             if (result) {
-                var lineText = findLocation(result.why.body, result.gcPoint);
+                var lineText = findLocation(result.gcInfo.body, result.gcInfo.ppoint);
                 print("\nFunction '" + functionName + "'" +
                       " with unrooted '" + name + "'" +
-                      " is live across GC call " + result.gcName +
+                      " is live across GC call " + result.gcInfo.name +
                       " at " + lineText);
                 printEntryTrace(result.why);
             }
