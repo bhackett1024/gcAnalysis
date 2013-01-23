@@ -57,27 +57,6 @@ for (var line of gcTypesText) {
         gcPointers[match[1]] = true;
 }
 
-function isRootedType(type)
-{
-    if (type.Kind != "CSU")
-        return false;
-
-    var name = type.Name;
-
-    if (name.startsWith('struct '))
-        name = name.substr(7);
-    if (name.startsWith('class '))
-        name = name.substr(6);
-    if (name.startsWith('const '))
-        name = name.substr(6);
-    if (name.startsWith('js::'))
-        name = name.substr(4);
-    if (name.startsWith('JS::'))
-        name = name.substr(4);
-
-    return name.startsWith('Rooted');
-}
-
 function isUnrootedType(type)
 {
     if (type.Kind == "Pointer") {
@@ -412,8 +391,17 @@ function printEntryTrace(entry)
     }
 }
 
+function isRootedType(type)
+{
+    return type.Kind == "CSU" && isRootedTypeName(type.Name);
+}
+
 function processBodies()
 {
+    // ignore jsxml.cpp
+    if (/jsxml\.cpp/.test(functionBodies[0].Location[0].CacheString))
+        return;
+
     if (!("DefineVariable" in functionBodies[0]))
         return;
     for (var variable of functionBodies[0].DefineVariable) {
@@ -439,8 +427,8 @@ function processBodies()
             if (result) {
                 var lineText = findLocation(result.gcInfo.body, result.gcInfo.ppoint);
                 print("\nFunction '" + functionName + "'" +
-                      " with unrooted '" + name + "'" +
-                      " is live across GC call " + result.gcInfo.name +
+                      " has unrooted '" + name + "'" +
+                      " live across GC call " + result.gcInfo.name +
                       " at " + lineText);
                 printEntryTrace(result.why);
             }

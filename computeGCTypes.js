@@ -2,6 +2,8 @@
 
 "use strict";
 
+load('annotations.js');
+
 function assert(x)
 {
     if (!x)
@@ -40,8 +42,13 @@ function processCSU(csu, body)
             if (target.Kind == "CSU")
                 addNestedPointer(csu, target.Name);
         }
-        if (type.Kind == "CSU")
+        if (type.Kind == "CSU") {
+            // Ignore nesting in classes which are AutoGCRooters. We only consider
+            // types with fields that may not be properly rooted.
+            if (type.Name == "JS::AutoGCRooter")
+                return;
             addNestedStructure(csu, type.Name);
+        }
     }
 }
 
@@ -68,7 +75,7 @@ var csuNames = snarf("tmp.txt").split('\n');
 assert(!csuNames[csuNames.length - 1]);
 for (var csuIndex = 0; csuIndex < csuNames.length - 1; csuIndex++) {
     var csu = csuNames[csuIndex];
-    print("Processing: " + csuIndex);
+    printErr("Processing: " + csuIndex);
     assert(!system("xdbfind -json src_comp.xdb '" + csu + "' > tmp.txt"));
     var text = snarf("tmp.txt");
     var json = JSON.parse(text);
@@ -91,6 +98,9 @@ function addGCType(name)
 
 function addGCPointer(name)
 {
+    // Ignore types which are properly rooted.
+    if (isRootedTypeName(name))
+        return;
     print("GCPointer: " + name);
     if (name in structureParents) {
         for (var nested of structureParents[name])

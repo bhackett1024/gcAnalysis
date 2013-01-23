@@ -1,5 +1,7 @@
 /* -*- Mode: Javascript; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 
+"use strict";
+
 function indirectCallCannotGC(caller, name)
 {
     if (name == "mallocSizeOf")
@@ -8,6 +10,7 @@ function indirectCallCannotGC(caller, name)
     return false;
 }
 
+// classes to ignore indirect calls on.
 var ignoreClasses = [
     "js::ion::MNode",
     "js::ion::MDefinition",
@@ -29,6 +32,8 @@ function fieldCallCannotGC(csu, field)
         if (csu == ignoreClasses[i])
             return true;
     }
+    if (csu == "js::Class" && field == "trace")
+        return true;
     return false;
 }
 
@@ -40,6 +45,10 @@ function ignoreEdgeUse(edge, variable)
         if (callee.Kind == "Var") {
             var name = callee.Variable.Name[0];
             if (/~Anchor/.test(name))
+                return true;
+            if (/::Unrooted\(\)/.test(name))
+                return true;
+            if (/~DebugOnly/.test(name))
                 return true;
         }
     }
@@ -64,4 +73,20 @@ function ignoreGCFunction(fun)
             return true;
     }
     return false;
+}
+
+function isRootedTypeName(name)
+{
+    if (name.startsWith('struct '))
+        name = name.substr(7);
+    if (name.startsWith('class '))
+        name = name.substr(6);
+    if (name.startsWith('const '))
+        name = name.substr(6);
+    if (name.startsWith('js::'))
+        name = name.substr(4);
+    if (name.startsWith('JS::'))
+        name = name.substr(4);
+
+    return name.startsWith('Rooted');
 }
