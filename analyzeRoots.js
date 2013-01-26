@@ -2,37 +2,11 @@
 
 "use strict";
 
+load('utility.js');
 load('annotations.js');
 
 var functionName;
 var functionBodies;
-
-function assert(x)
-{
-    if (!x)
-        throw "assertion failed: " + (Error().stack);
-}
-
-function xprint(x, padding)
-{
-    if (!padding)
-        padding = "";
-    if (x instanceof Array) {
-        print(padding + "[");
-        for (var elem of x)
-            xprint(elem, padding + " ");
-        print(padding + "]");
-    } else if (x instanceof Object) {
-        print(padding + "{");
-        for (var prop in x) {
-            print(padding + " " + prop + ":");
-            xprint(x[prop], padding + "  ");
-        }
-        print(padding + "}");
-    } else {
-        print(padding + x);
-    }
-}
 
 if (typeof arguments[0] != 'string' || typeof arguments[1] != 'string')
     throw "Usage: analyzeRoots.js <gcFunctions.html> <gcTypes.txt>";
@@ -68,12 +42,6 @@ function isUnrootedType(type)
     if (type.Kind == "CSU")
         return type.Name in gcPointers;
     return false;
-}
-
-function sameVariable(var0, var1)
-{
-    assert("Name" in var0 || var0.Kind == "This" || var0.Kind == "Return");
-    return "Name" in var0 && var0.Name[0] == var1.Name[0];
 }
 
 function expressionUsesVariable(exp, variable, ignoreTopmost)
@@ -119,7 +87,6 @@ function edgeUsesVariable(edge, variable)
     case "Loop":
         return false;
     default:
-        xprint(edge);
         assert(false);
     }
 }
@@ -172,17 +139,6 @@ function computePredecessors(body)
             body.predecessors[target] = [];
         body.predecessors[target].push(edge);
     }
-}
-
-function sameBlockId(id0, id1)
-{
-    if (id0.Kind != id1.Kind)
-        return false;
-    if (!sameVariable(id0.Variable, id1.Variable))
-        return false;
-    if (id0.Kind == "Loop" && id0.Loop != id1.Loop)
-        return false;
-    return true;
 }
 
 function variableUseFollowsGC(variable, worklist)

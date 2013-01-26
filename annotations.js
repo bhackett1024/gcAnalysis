@@ -18,6 +18,8 @@ var ignoreClasses = [
     "js::ion::MControlInstruction",
     "js::ion::LInstruction",
     "js::ion::OutOfLineCode",
+    "js::ion::MInstructionVisitor",
+    "js::ion::LInstructionVisitor",
     "JSTracer",
     "SprintfStateStr",
     "js::InterpreterFrames::InterruptEnablerBase",
@@ -56,22 +58,11 @@ function ignoreEdgeUse(edge, variable)
     return false;
 }
 
-var ignoreFunctions = [
-    "js_ReportOutOfMemory",
-    "js_ReportAllocationOverflow",
-    "js::DeflateStringToBuffer",
-    "js::InflateStringToBuffer",
-    "js::InflateUTF8StringToBuffer",
-    "js::types::TypeObject::clearNewScript",
-    "analyzeTypesBytecode"
-];
-
 function ignoreGCFunction(fun)
 {
-    for (var i = 0; i < ignoreFunctions.length; i++) {
-        if (fun.indexOf(ignoreFunctions[i]) >= 0)
-            return true;
-    }
+    // XXX modify refillFreeList<NoGC> to not need data flow analysis to understand it cannot GC.
+    if (/refillFreeList/.test(fun) && /\(js::AllowGC\)0u/.test(fun))
+        return true;
     return false;
 }
 
@@ -89,4 +80,10 @@ function isRootedTypeName(name)
         name = name.substr(4);
 
     return name.startsWith('Rooted');
+}
+
+function isSuppressConstructor(name)
+{
+    return /::AutoSuppressGC/.test(name)
+        || /::AutoEnterAnalysis/.test(name);
 }

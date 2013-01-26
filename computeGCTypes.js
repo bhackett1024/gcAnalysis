@@ -2,34 +2,8 @@
 
 "use strict";
 
+load('utility.js');
 load('annotations.js');
-
-function assert(x)
-{
-    if (!x)
-        throw "assertion failed: " + (Error().stack);
-}
-
-function xprint(x, padding)
-{
-    if (!padding)
-        padding = "";
-    if (x instanceof Array) {
-        print(padding + "[");
-        for (var elem of x)
-            xprint(elem, padding + " ");
-        print(padding + "]");
-    } else if (x instanceof Object) {
-        print(padding + "{");
-        for (var prop in x) {
-            print(padding + " " + prop + ":");
-            xprint(x[prop], padding + "  ");
-        }
-        print(padding + "}");
-    } else {
-        print(padding + x);
-    }
-}
 
 function processCSU(csu, body)
 {
