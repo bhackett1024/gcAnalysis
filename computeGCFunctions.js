@@ -81,6 +81,8 @@ for (var name in calleeGraph) {
 }
 while (worklist.length) {
     name = worklist.pop();
+    if (shouldSuppressGC(name))
+        continue;
     if (!(name in suppressedFunctions))
         continue;
     delete suppressedFunctions[name];

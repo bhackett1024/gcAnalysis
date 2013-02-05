@@ -12,20 +12,10 @@ function indirectCallCannotGC(caller, name)
 
 // classes to ignore indirect calls on.
 var ignoreClasses = [
-    "js::ion::MNode",
-    "js::ion::MDefinition",
-    "js::ion::MInstruction",
-    "js::ion::MControlInstruction",
-    "js::ion::LInstruction",
-    "js::ion::OutOfLineCode",
-    "js::ion::MInstructionVisitor",
-    "js::ion::LInstructionVisitor",
     "JSTracer",
     "SprintfStateStr",
-    "js::InterpreterFrames::InterruptEnablerBase",
     "JSLocaleCallbacks",
-    "js::MatchPairs",
-    "js::types::TypeConstraint"
+    "JSC::ExecutableAllocator"
 ];
 
 function fieldCallCannotGC(csu, field)
@@ -39,6 +29,15 @@ function fieldCallCannotGC(csu, field)
     return false;
 }
 
+function shouldSuppressGC(name)
+{
+    // Various dead code that should only be called inside AutoEnterAnalysis.
+    // Functions with no known caller are by default treated as not suppressing GC.
+    return /TypeScript::Purge/.test(name)
+        || /StackTypeSet::addPropagateThis/.test(name)
+        || /ScriptAnalysis::addPushedType/.test(name);
+}
+
 function ignoreEdgeUse(edge, variable)
 {
     // Functions which should not be treated as using variable.
@@ -49,6 +48,8 @@ function ignoreEdgeUse(edge, variable)
             if (/~Anchor/.test(name))
                 return true;
             if (/::Unrooted\(\)/.test(name))
+                return true;
+            if (/::~Unrooted\(\)/.test(name))
                 return true;
             if (/~DebugOnly/.test(name))
                 return true;
