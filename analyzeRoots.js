@@ -4,21 +4,17 @@
 
 load('utility.js');
 load('annotations.js');
+load('loadCallgraph.js');
 
 var functionName;
 var functionBodies;
 
 if (typeof arguments[0] != 'string' || typeof arguments[1] != 'string')
-    throw "Usage: analyzeRoots.js <gcFunctions.html> <gcTypes.txt>";
+    throw "Usage: analyzeRoots.js <callgraph.txt> <gcTypes.txt>";
 
-var gcFunctions = {};
+loadCallgraph(arguments[0]);
+
 var match;
-
-var gcFunctionsText = snarf(arguments[0]).split('\n');
-for (var line of gcFunctionsText) {
-    if (match = /GC Function: (.*)/.exec(line))
-        gcFunctions[match[1]] = true;
-}
 
 var gcThings = {};
 var gcPointers = {};
@@ -108,13 +104,20 @@ function edgeKillsVariable(edge, variable)
 
 function edgeCanGC(edge)
 {
+    if (functionName in suppressedFunctions)
+        return false;
     if (edge.Kind != "Call")
         return false;
     var callee = edge.Exp[0];
     if (callee.Kind == "Var") {
         var variable = callee.Variable;
         assert(variable.Kind == "Func");
-        return (variable.Name[0] in gcFunctions) ? "'" + variable.Name[0] + "'" : null;
+        if (variable.Name[0] in gcFunctions)
+            return "'" + variable.Name[0] + "'";
+        var otherName = otherDestructorName(variable.Name[0]);
+        if (otherName in gcFunctions)
+            return "'" + otherName + "'";
+        return null;
     }
     assert(callee.Kind == "Drf");
     if (callee.Exp[0].Kind == "Fld") {

@@ -150,23 +150,6 @@ function computeSuppressedPoints(body)
     return [];
 }
 
-function otherDestructorName(name)
-{
-    // gcc's information for destructors can be pretty messed up. Some functions
-    // have destructors with no arguments, some have destructors with an int32
-    // argument, some have both, and which one matches what the programmer wrote
-    // is anyone's guess. Work around this by treating calls to one destructor
-    // form as a call to both destructor forms.
-    if (!/::~/.test(name))
-        return null;
-
-    if (/\(int32\)/.test(name))
-        return name.replace("(int32)","()");
-    if (/\(\)/.test(name))
-        return name.replace("()","(int32)");
-    return null;
-}
-
 function processBody(caller, body)
 {
     if (!('PEdge' in body))

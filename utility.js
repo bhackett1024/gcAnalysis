@@ -44,3 +44,20 @@ function sameVariable(var0, var1)
     assert("Name" in var0 || var0.Kind == "This" || var0.Kind == "Return");
     return "Name" in var0 && var0.Name[0] == var1.Name[0];
 }
+
+function otherDestructorName(name)
+{
+    // gcc's information for destructors can be pretty messed up. Some functions
+    // have destructors with no arguments, some have destructors with an int32
+    // argument, some have both, and which one matches what the programmer wrote
+    // is anyone's guess. Work around this by treating calls to one destructor
+    // form as a call to both destructor forms.
+    if (!/::~/.test(name))
+        return null;
+
+    if (/\(int32\)/.test(name))
+        return name.replace("(int32)","()");
+    if (/\(\)/.test(name))
+        return name.replace("()","(int32)");
+    return null;
+}
