@@ -42,7 +42,10 @@ function sameBlockId(id0, id1)
 function sameVariable(var0, var1)
 {
     assert("Name" in var0 || var0.Kind == "This" || var0.Kind == "Return");
-    return "Name" in var0 && var0.Name[0] == var1.Name[0];
+    assert("Name" in var1 || var1.Kind == "This" || var1.Kind == "Return");
+    if ("Name" in var0)
+	return "Name" in var1 && var0.Name[0] == var1.Name[0];
+    return var0.Kind == var1.Kind;
 }
 
 function otherDestructorName(name)

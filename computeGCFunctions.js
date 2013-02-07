@@ -14,7 +14,6 @@ print("Time: " + new Date);
 
 loadCallgraph(arguments[0]);
 
-var count = 0;
 for (var name in gcFunctions) {
     print("");
     print("GC Function: " + name);
@@ -22,6 +21,11 @@ for (var name in gcFunctions) {
         name = gcFunctions[name];
         print("    " + name);
     } while (name in gcFunctions);
+}
+
+for (var name in suppressedFunctions) {
+    print("");
+    print("Suppressed Function: " + name);
 }
 
 print("</pre></html>");

@@ -4,17 +4,25 @@
 
 load('utility.js');
 load('annotations.js');
-load('loadCallgraph.js');
 
 var functionName;
 var functionBodies;
 
 if (typeof arguments[0] != 'string' || typeof arguments[1] != 'string')
-    throw "Usage: analyzeRoots.js <callgraph.txt> <gcTypes.txt>";
-
-loadCallgraph(arguments[0]);
+    throw "Usage: analyzeRoots.js <gcFunctions.html> <gcTypes.txt>";
 
 var match;
+
+var gcFunctions = {};
+var suppressedFunctions = {};
+var gcFunctionsText = snarf(arguments[0]).split('\n');
+for (var line of gcFunctionsText) {
+    if (match = /GC Function: (.*)/.exec(line))
+        gcFunctions[match[1]] = true;
+    if (match = /Suppressed Function: (.*)/.exec(line))
+        suppressedFunctions[match[1]] = true;
+}
+gcFunctionsText = null;
 
 var gcThings = {};
 var gcPointers = {};
@@ -26,6 +34,7 @@ for (var line of gcTypesText) {
     if (match = /GCPointer: (.*)/.exec(line))
         gcPointers[match[1]] = true;
 }
+gcTypesText = null;
 
 function isUnrootedType(type)
 {
@@ -40,9 +49,9 @@ function isUnrootedType(type)
     return false;
 }
 
-function expressionUsesVariable(exp, variable, ignoreTopmost)
+function expressionUsesVariable(exp, variable)
 {
-    if (!ignoreTopmost && exp.Kind == "Var" && sameVariable(exp.Variable, variable))
+    if (exp.Kind == "Var" && sameVariable(exp.Variable, variable))
         return true;
     if (!("Exp" in exp))
         return false;
@@ -59,7 +68,7 @@ function edgeUsesVariable(edge, variable)
         return false;
     switch (edge.Kind) {
     case "Assign":
-        if (expressionUsesVariable(edge.Exp[0], variable, true))
+        if (expressionUsesVariable(edge.Exp[0], variable))
             return true;
         return expressionUsesVariable(edge.Exp[1], variable);
     case "Assume":
@@ -67,7 +76,7 @@ function edgeUsesVariable(edge, variable)
     case "Call":
         if (expressionUsesVariable(edge.Exp[0], variable))
             return true;
-        if (1 in edge.Exp && expressionUsesVariable(edge.Exp[1], variable, true))
+        if (1 in edge.Exp && expressionUsesVariable(edge.Exp[1], variable))
             return true;
         if ("PEdgeCallInstance" in edge) {
             if (expressionUsesVariable(edge.PEdgeCallInstance.Exp, variable))
@@ -89,16 +98,63 @@ function edgeUsesVariable(edge, variable)
 
 function edgeKillsVariable(edge, variable)
 {
+    // Direct assignments kill their lhs.
     if (edge.Kind == "Assign") {
         var lhs = edge.Exp[0];
         if (lhs.Kind == "Var" && sameVariable(lhs.Variable, variable))
             return true;
     }
-    if (edge.Kind == "Call" && 1 in edge.Exp) {
+
+    if (edge.Kind != "Call")
+        return false;
+
+    // Assignments of call results kill their lhs.
+    if (1 in edge.Exp) {
         var lhs = edge.Exp[1];
         if (lhs.Kind == "Var" && sameVariable(lhs.Variable, variable))
             return true;
     }
+
+    // Constructor calls kill their 'this' value.
+    if ("PEdgeCallInstance" in edge) {
+        do {
+            var instance = edge.PEdgeCallInstance.Exp;
+
+            // Kludge around incorrect dereference on some constructor calls.
+            if (instance.Kind == "Drf")
+                instance = instance.Exp[0];
+
+            if (instance.Kind != "Var" || !sameVariable(instance.Variable, variable))
+                break;
+
+            var callee = edge.Exp[0];
+            if (callee.Kind != "Var")
+                break;
+
+            assert(callee.Variable.Kind == "Func");
+            var calleeName = callee.Variable.Name[0];
+
+            // Constructor calls include the text 'Name::Name(' or 'Name<...>::Name('.
+            var openParen = calleeName.indexOf('(');
+            if (openParen < 0)
+                break;
+            calleeName = calleeName.substring(0, openParen);
+
+            var lastColon = calleeName.lastIndexOf('::');
+            if (lastColon < 0)
+                break;
+            var constructorName = calleeName.substr(lastColon + 2);
+            calleeName = calleeName.substr(0, lastColon);
+
+            var lastTemplateOpen = calleeName.lastIndexOf('<');
+            if (lastTemplateOpen >= 0)
+                calleeName = calleeName.substr(0, lastTemplateOpen);
+
+            if (calleeName.endsWith(constructorName))
+                return true;
+        } while (false);
+    }
+
     return false;
 }
 
@@ -246,7 +302,7 @@ function variableLiveAcrossGC(variable)
         if (!("PEdge" in body))
             continue;
         for (var edge of body.PEdge) {
-            if (edgeUsesVariable(edge, variable)) {
+            if (edgeUsesVariable(edge, variable) && !edgeKillsVariable(edge, variable)) {
                 var worklist = [{body:body, ppoint:edge.Index[0], gcInfo:null, why:null}];
                 var call = variableUseFollowsGC(variable, worklist);
                 if (call)
@@ -364,9 +420,13 @@ function processBodies()
     if (!("DefineVariable" in functionBodies[0]))
         return;
     for (var variable of functionBodies[0].DefineVariable) {
-        if (!("Name" in variable.Variable))
+        if (variable.Variable.Kind == "Return")
             continue;
-        var name = variable.Variable.Name[0];
+        var name;
+        if (variable.Variable.Kind == "This")
+            name = "this";
+        else
+            name = variable.Variable.Name[0];
         if (isRootedType(variable.Type)) {
             if (!variableLiveAcrossGC(variable.Variable)) {
                 // The earliest use of the variable should be its constructor.
