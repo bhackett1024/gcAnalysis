@@ -182,11 +182,14 @@ function processBody(caller, body)
                           " CLASS " + field.FieldCSU.Type.Name +
                           " FIELD " + field.Name[0]);
                 }
-            } else {
+            } else if (callee.Exp[0].Kind == "Var") {
                 // indirect call through a variable.
                 assert(callee.Exp[0].Kind == "Var");
                 print("IndirectEdge: " + prologue +
                       " VARIABLE " + callee.Exp[0].Variable.Name[0]);
+            } else {
+                // unknown call target.
+                print("IndirectEdge: " + prologue + " VARIABLE UNKNOWN");
             }
         }
     }
