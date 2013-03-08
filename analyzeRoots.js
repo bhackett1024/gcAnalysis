@@ -4,6 +4,7 @@
 
 load('utility.js');
 load('annotations.js');
+load('suppressedPoints.js');
 
 var functionName;
 var functionBodies;
@@ -257,7 +258,7 @@ function variableUseFollowsGC(variable, worklist)
             }
 
             var gcInfo = entry.gcInfo;
-            if (!gcInfo) {
+            if (!gcInfo && !(edge.Index[0] in body.suppressed)) {
                 var gcName = edgeCanGC(edge);
                 if (gcName)
                     gcInfo = {name:gcName, body:body, ppoint:source};
@@ -413,10 +414,6 @@ function isRootedType(type)
 
 function processBodies()
 {
-    // ignore jsxml.cpp
-    if (/jsxml\.cpp/.test(functionBodies[0].Location[0].CacheString))
-        return;
-
     if (!("DefineVariable" in functionBodies[0]))
         return;
     for (var variable of functionBodies[0].DefineVariable) {
@@ -438,8 +435,8 @@ function processBodies()
                             lineText = text;
                     }
                 }
-                print("\nFunction '" + functionName + "'" +
-                      " has unnecessary root '" + name + "' at " + lineText);
+                //print("\nFunction '" + functionName + "'" +
+                //      " has unnecessary root '" + name + "' at " + lineText);
             }
         } else if (isUnrootedType(variable.Type)) {
             var result = variableLiveAcrossGC(variable.Variable);
@@ -469,6 +466,11 @@ for (var nameIndex = minStream; nameIndex <= maxStream; nameIndex++) {
     functionName = name.readString();
     var data = xdb.read_entry(name);
     functionBodies = JSON.parse(data.readString());
+
+    for (var body of functionBodies)
+        body.suppressed = [];
+    for (var body of functionBodies)
+        computeSuppressedPoints(body);
     processBodies();
 
     xdb.free_string(name);

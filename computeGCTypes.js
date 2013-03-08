@@ -92,3 +92,4 @@ addGCType('js::BaseShape');
 addGCType('JSScript');
 addGCType('js::ion::IonCode');
 addGCPointer('JS::Value');
+addGCPointer('jsid');

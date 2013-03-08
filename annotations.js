@@ -33,8 +33,6 @@ function fieldCallCannotGC(csu, field)
         return true;
     if (csu == "JSRuntime" && field == "destroyPrincipals")
         return true;
-    if (csu == "js::BaseProxyHandler" && field == "isOuterWindow")
-        return true;
     return false;
 }
 
