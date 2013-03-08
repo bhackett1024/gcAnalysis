@@ -34,31 +34,38 @@ function addCallEdge(caller, callee, suppressed)
     callerGraph[callee].push({caller:caller, suppressed:suppressed});
 }
 
+var functionNames = [""];
+
 function loadCallgraph(file)
 {
     var textLines = snarf(file).split('\n');
     for (var line of textLines) {
 	    var match;
+        if (match = /^\#(\d+) (.*)/.exec(line)) {
+            assert(functionNames.length == match[1]);
+            functionNames.push(match[2]);
+            continue;
+        }
 	    var suppressed = false;
 	    if (/SUPPRESS_GC/.test(line)) {
-            match = /(.*?)SUPPRESS_GC (.*)/.exec(line);
+            match = /^(..)SUPPRESS_GC (.*)/.exec(line);
             line = match[1] + match[2];
             suppressed = true;
 	    }
-	    if (match = /IndirectEdge: CALLER (.*?) VARIABLE ([^\,]*)/.exec(line)) {
-            var caller = match[1];
+	    if (match = /^I (\d+) VARIABLE ([^\,]*)/.exec(line)) {
+            var caller = functionNames[match[1]];
             var name = match[2];
             if (!indirectCallCannotGC(caller, name) && !suppressed)
 		        addGCFunction(caller, "IndirectCall: " + name);
-	    } else if (match = /FieldEdge: CALLER (.*?) CLASS (.*?) FIELD (.*)/.exec(line)) {
-            var caller = match[1];
+	    } else if (match = /^F (\d+) CLASS (.*?) FIELD (.*)/.exec(line)) {
+            var caller = functionNames[match[1]];
             var csu = match[2];
             var field = match[3];
             if (!fieldCallCannotGC(csu, field) && !suppressed)
 		        addGCFunction(caller, "FieldCall: " + csu + "." + field);
-	    } else if (match = /DirectEdge: CALLER (.*?) CALLEE (.*)/.exec(line)) {
-            var caller = match[1];
-            var callee = match[2];
+	    } else if (match = /^D (\d+) (\d+)/.exec(line)) {
+            var caller = functionNames[match[1]];
+            var callee = functionNames[match[2]];
             addCallEdge(caller, callee, suppressed);
 	    }
     }

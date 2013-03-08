@@ -150,6 +150,19 @@ function computeSuppressedPoints(body)
     return [];
 }
 
+var memoized = {};
+var memoizedCount = 0;
+
+function memo(name)
+{
+    if (!(name in memoized)) {
+        memoizedCount++;
+        memoized[name] = "" + memoizedCount;
+        print("#" + memoizedCount + " " + name);
+    }
+    return memoized[name];
+}
+
 function processBody(caller, body)
 {
     if (!('PEdge' in body))
@@ -159,14 +172,14 @@ function processBody(caller, body)
             continue;
         var callee = edge.Exp[0];
         var suppressText = (edge.Index[0] in body.suppressed) ? "SUPPRESS_GC " : "";
-        var prologue = suppressText + "CALLER " + caller;
+        var prologue = suppressText + memo(caller) + " ";
         if (callee.Kind == "Var") {
             assert(callee.Variable.Kind == "Func");
             var name = callee.Variable.Name[0];
-            print("DirectEdge: " + prologue + " CALLEE " + name);
+            print("D " + prologue + memo(name));
             var otherName = otherDestructorName(name);
             if (otherName)
-                print("DirectEdge: " + prologue + " CALLEE " + otherName);
+                print("D " + prologue + memo(otherName));
         } else {
             assert(callee.Kind == "Drf");
             if (callee.Exp[0].Kind == "Fld") {
@@ -175,21 +188,21 @@ function processBody(caller, body)
                     // virtual function call.
                     var functions = findVirtualFunctions(field.FieldCSU.Type.Name, field.Name[0]);
                     for (var name of functions)
-                        print("DirectEdge: " + prologue + " CALLEE " + name);
+                        print("D " + prologue + memo(name));
                 } else {
                     // indirect call through a field.
-                    print("FieldEdge: " + prologue +
-                          " CLASS " + field.FieldCSU.Type.Name +
+                    print("F " + prologue +
+                          "CLASS " + field.FieldCSU.Type.Name +
                           " FIELD " + field.Name[0]);
                 }
             } else if (callee.Exp[0].Kind == "Var") {
                 // indirect call through a variable.
                 assert(callee.Exp[0].Kind == "Var");
-                print("IndirectEdge: " + prologue +
-                      " VARIABLE " + callee.Exp[0].Variable.Name[0]);
+                print("I " + prologue +
+                      "VARIABLE " + callee.Exp[0].Variable.Name[0]);
             } else {
                 // unknown call target.
-                print("IndirectEdge: " + prologue + " VARIABLE UNKNOWN");
+                print("I " + prologue + "VARIABLE UNKNOWN");
             }
         }
     }
