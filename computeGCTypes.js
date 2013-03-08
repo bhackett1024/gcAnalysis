@@ -43,18 +43,22 @@ function addNestedPointer(csu, inner)
 var structureParents = {};
 var pointerParents = {};
 
-assert(!system("xdbkeys src_comp.xdb > tmp.txt"));
+var xdb = xdbLibrary();
+xdb.open("src_comp.xdb");
 
-var csuNames = snarf("tmp.txt").split('\n');
-assert(!csuNames[csuNames.length - 1]);
-for (var csuIndex = 0; csuIndex < csuNames.length - 1; csuIndex++) {
-    var csu = csuNames[csuIndex];
+var minStream = xdb.min_data_stream();
+var maxStream = xdb.max_data_stream();
+
+for (var csuIndex = minStream; csuIndex <= maxStream; csuIndex++) {
+    var csu = xdb.read_key(csuIndex);
     printErr("Processing: " + csuIndex);
-    assert(!system("xdbfind -json src_comp.xdb '" + csu + "' > tmp.txt"));
-    var text = snarf("tmp.txt");
-    var json = JSON.parse(text);
+    var data = xdb.read_entry(csu);
+    var json = JSON.parse(data.readString());
     assert(json.length == 1);
-    processCSU(csu, json[0]);
+    processCSU(csu.readString(), json[0]);
+
+    xdb.free_string(csu);
+    xdb.free_string(data);
 }
 
 function addGCType(name)

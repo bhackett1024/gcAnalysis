@@ -319,7 +319,7 @@ function computePrintedLines()
     var lines = snarf("tmp.txt").split('\n');
 
     for (var body of functionBodies)
-    body.lines = [];
+        body.lines = [];
 
     // Distribute lines of output to the block they originate from.
     var currentBody = null;
@@ -458,16 +458,22 @@ function processBodies()
 print("<html><pre>");
 print("Time: " + new Date);
 
-assert(!system("xdbkeys src_body.xdb > tmp.txt"));
-var functionNames = snarf("tmp.txt").split('\n');
-assert(!functionNames[functionNames.length - 1]);
-for (var nameIndex = 0; nameIndex < functionNames.length - 1; nameIndex++) {
-    functionName = functionNames[nameIndex];
+var xdb = xdbLibrary();
+xdb.open("src_body.xdb");
+
+var minStream = xdb.min_data_stream();
+var maxStream = xdb.max_data_stream();
+
+for (var nameIndex = minStream; nameIndex <= maxStream; nameIndex++) {
+    var name = xdb.read_key(nameIndex);
+    functionName = name.readString();
     printErr("Processing: " + nameIndex);
-    assert(!system("xdbfind -json src_body.xdb '" + functionName + "' > tmp.txt"));
-    var text = snarf("tmp.txt");
-    functionBodies = JSON.parse(text);
+    var data = xdb.read_entry(name);
+    functionBodies = JSON.parse(data.readString());
     processBodies();
+
+    xdb.free_string(name);
+    xdb.free_string(data);
 }
 
 print("\n</pre></html>");

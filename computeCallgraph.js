@@ -210,32 +210,40 @@ function processBody(caller, body)
 
 var callgraph = {};
 
-assert(!system("xdbkeys src_comp.xdb > tmp.txt"));
-var csuNames = snarf("tmp.txt").split('\n');
-assert(!csuNames[csuNames.length - 1]);
-for (var csuIndex = 0; csuIndex < csuNames.length - 1; csuIndex++) {
-    var csu = csuNames[csuIndex];
+var xdb = xdbLibrary();
+xdb.open("src_comp.xdb");
+
+var minStream = xdb.min_data_stream();
+var maxStream = xdb.max_data_stream();
+
+for (var csuIndex = minStream; csuIndex <= maxStream; csuIndex++) {
+    var csu = xdb.read_key(csuIndex);
     printErr("Processing CSU: " + csuIndex);
-    assert(!system("xdbfind -json src_comp.xdb '" + csu + "' > tmp.txt"));
-    var text = snarf("tmp.txt");
-    var json = JSON.parse(text);
-    processCSU(csu, json[0]);
+    var data = xdb.read_entry(csu);
+    var json = JSON.parse(data.readString());
+    processCSU(csu.readString(), json[0]);
+
+    xdb.free_string(csu);
+    xdb.free_string(data);
 }
 
-assert(!system("xdbkeys src_body.xdb > tmp.txt"));
-var functionNames = snarf("tmp.txt").split('\n');
+xdb.open("src_body.xdb");
 
-assert(!functionNames[functionNames.length - 1]);
-for (var nameIndex = 0; nameIndex < functionNames.length - 1; nameIndex++) {
-    var name = functionNames[nameIndex];
+var minStream = xdb.min_data_stream();
+var maxStream = xdb.max_data_stream();
+
+for (var nameIndex = minStream; nameIndex <= maxStream; nameIndex++) {
+    var name = xdb.read_key(nameIndex);
     printErr("Processing: " + nameIndex);
-    assert(!system("xdbfind -json src_body.xdb '" + name + "' > tmp.txt"));
-    var text = snarf("tmp.txt");
-    functionBodies = JSON.parse(text);
+    var data = xdb.read_entry(name);
+    functionBodies = JSON.parse(data.readString());
     for (var body of functionBodies)
         body.suppressed = [];
     for (var body of functionBodies)
         computeSuppressedPoints(body);
     for (var body of functionBodies)
-        processBody(name, body);
+        processBody(name.readString(), body);
+
+    xdb.free_string(name);
+    xdb.free_string(data);
 }

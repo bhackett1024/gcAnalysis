@@ -1,3 +1,4 @@
+/* -*- Mode: Javascript; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 
 "use strict";
 
@@ -63,4 +64,17 @@ function otherDestructorName(name)
     if (/\(\)/.test(name))
         return name.replace("()","(int32)");
     return null;
+}
+
+function xdbLibrary()
+{
+    var lib = ctypes.open("./xdb.so");
+    return {
+        open: lib.declare("xdb_open", ctypes.default_abi, ctypes.void_t, ctypes.char.ptr),
+        min_data_stream: lib.declare("xdb_min_data_stream", ctypes.default_abi, ctypes.int),
+        max_data_stream: lib.declare("xdb_max_data_stream", ctypes.default_abi, ctypes.int),
+        read_key: lib.declare("xdb_read_key", ctypes.default_abi, ctypes.char.ptr, ctypes.int),
+        read_entry: lib.declare("xdb_read_entry", ctypes.default_abi, ctypes.char.ptr, ctypes.char.ptr),
+        free_string: lib.declare("xdb_free", ctypes.default_abi, ctypes.void_t, ctypes.char.ptr)
+    };
 }
