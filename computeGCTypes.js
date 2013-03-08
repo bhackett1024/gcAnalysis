@@ -51,7 +51,6 @@ var maxStream = xdb.max_data_stream();
 
 for (var csuIndex = minStream; csuIndex <= maxStream; csuIndex++) {
     var csu = xdb.read_key(csuIndex);
-    printErr("Processing: " + csuIndex);
     var data = xdb.read_entry(csu);
     var json = JSON.parse(data.readString());
     assert(json.length == 1);

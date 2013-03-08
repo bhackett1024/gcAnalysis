@@ -7,12 +7,17 @@ function indirectCallCannotGC(caller, name)
     if (name == "mallocSizeOf")
         return true;
 
+    // hook called during script finalization which cannot GC.
+    if (/CallDestroyScriptHook/.test(caller))
+        return true;
+
     return false;
 }
 
 // classes to ignore indirect calls on.
 var ignoreClasses = [
     "JSTracer",
+    "JSStringFinalizer",
     "SprintfStateStr",
     "JSLocaleCallbacks",
     "JSC::ExecutableAllocator"
@@ -24,7 +29,11 @@ function fieldCallCannotGC(csu, field)
         if (csu == ignoreClasses[i])
             return true;
     }
-    if (csu == "js::Class" && field == "trace")
+    if (csu == "js::Class" && (field == "trace" || field == "finalize"))
+        return true;
+    if (csu == "JSRuntime" && field == "destroyPrincipals")
+        return true;
+    if (csu == "js::BaseProxyHandler" && field == "isOuterWindow")
         return true;
     return false;
 }
@@ -35,7 +44,8 @@ function shouldSuppressGC(name)
     // Functions with no known caller are by default treated as not suppressing GC.
     return /TypeScript::Purge/.test(name)
         || /StackTypeSet::addPropagateThis/.test(name)
-        || /ScriptAnalysis::addPushedType/.test(name);
+        || /ScriptAnalysis::addPushedType/.test(name)
+        || /IonBuilder/.test(name);
 }
 
 function ignoreEdgeUse(edge, variable)

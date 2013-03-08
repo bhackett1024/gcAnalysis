@@ -72,9 +72,12 @@ function processCSU(csuName, csu)
                 subclasses[superclass].push(subclass);
         }
         if ("Variable" in field) {
+            // Note: not dealing with overloading correctly.
             var name = field.Variable.Name[0];
             var key = csuName + ":" + field.Field[0].Name[0];
-            classFunctions[key] = name;
+            if (!(key in classFunctions))
+                classFunctions[key] = [];
+            classFunctions[key].push(name);
         }
     }
 }
@@ -88,8 +91,10 @@ function findVirtualFunctions(csu, field)
         var csu = worklist.pop();
         var key = csu + ":" + field;
 
-        if (key in classFunctions)
-            functions.push(classFunctions[key]);
+        if (key in classFunctions) {
+            for (var name of classFunctions[key])
+                functions.push(name);
+        }
 
         if (csu in subclasses) {
             for (var subclass of subclasses[csu])
@@ -218,7 +223,6 @@ var maxStream = xdb.max_data_stream();
 
 for (var csuIndex = minStream; csuIndex <= maxStream; csuIndex++) {
     var csu = xdb.read_key(csuIndex);
-    printErr("Processing CSU: " + csuIndex);
     var data = xdb.read_entry(csu);
     var json = JSON.parse(data.readString());
     processCSU(csu.readString(), json[0]);
@@ -234,7 +238,6 @@ var maxStream = xdb.max_data_stream();
 
 for (var nameIndex = minStream; nameIndex <= maxStream; nameIndex++) {
     var name = xdb.read_key(nameIndex);
-    printErr("Processing: " + nameIndex);
     var data = xdb.read_entry(name);
     functionBodies = JSON.parse(data.readString());
     for (var body of functionBodies)

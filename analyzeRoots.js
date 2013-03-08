@@ -467,7 +467,6 @@ var maxStream = xdb.max_data_stream();
 for (var nameIndex = minStream; nameIndex <= maxStream; nameIndex++) {
     var name = xdb.read_key(nameIndex);
     functionName = name.readString();
-    printErr("Processing: " + nameIndex);
     var data = xdb.read_entry(name);
     functionBodies = JSON.parse(data.readString());
     processBodies();
