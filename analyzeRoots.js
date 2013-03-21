@@ -16,14 +16,21 @@ var match;
 
 var gcFunctions = {};
 var suppressedFunctions = {};
-var gcFunctionsText = snarf(arguments[0]).split('\n');
-for (var line of gcFunctionsText) {
-    if (match = /GC Function: (.*)/.exec(line))
-        gcFunctions[match[1]] = true;
-    if (match = /Suppressed Function: (.*)/.exec(line))
-        suppressedFunctions[match[1]] = true;
+assert(!system("grep 'GC Function' " + arguments[0] + " > tmp.txt"));
+var text = snarf("tmp.txt").split('\n');
+assert(text.pop().length == 0);
+for (var line of text) {
+    match = /GC Function: (.*)/.exec(line);
+    gcFunctions[match[1]] = true;
 }
-gcFunctionsText = null;
+assert(!system("grep 'Suppressed Function' " + arguments[0] + " > tmp.txt"));
+text = snarf("tmp.txt").split('\n');
+assert(text.pop().length == 0);
+for (var line of text) {
+    match = /Suppressed Function: (.*)/.exec(line);
+    suppressedFunctions[match[1]] = true;
+}
+text = null;
 
 var gcThings = {};
 var gcPointers = {};
@@ -383,10 +390,8 @@ function printEntryTrace(entry)
             var next = entry.why.ppoint;
             for (var line of entry.body.lines) {
                 if (match = /\((\d+),(\d+),/.exec(line)) {
-                    if (match[1] == ppoint && match[2] == next) {
-                        assert(!edgeText);
+                    if (match[1] == ppoint && match[2] == next)
                         edgeText = line;
-                    }
                 }
             }
             assert(edgeText);
